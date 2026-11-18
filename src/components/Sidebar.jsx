@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { sortFields } from "../lib/fields.js";
 
+const TYPE_LABELS = { text: "Text", checkbox: "Checkbox", signature: "Signature" };
+const TYPE_ICONS = { text: "T", checkbox: "☐", signature: "✍" };
+
 const NUM_KEYS = ["x", "y", "w", "h"];
 
 export default function Sidebar({ fields, existing, pageCount, selected, code, onSelect, onChange, onDelete, onImport }) {
@@ -18,6 +21,8 @@ export default function Sidebar({ fields, existing, pageCount, selected, code, o
     ? "This name is already a field in the PDF."
     : fields.filter((f) => f.name === selected.name).length > 1
     ? "Another field has this name."
+    : selected.type === "signature" && selected.name.includes(".")
+    ? "Signature names can't contain dots."
     : "";
 
   async function copy() {
@@ -56,13 +61,13 @@ export default function Sidebar({ fields, existing, pageCount, selected, code, o
 
             <label className="f">Type</label>
             <div className="seg">
-              {["text", "checkbox"].map((t) => (
+              {Object.keys(TYPE_LABELS).map((t) => (
                 <button
                   key={t}
                   className={selected.type === t ? "on" : ""}
                   onClick={() => onChange(selected.id, { type: t })}
                 >
-                  {t === "text" ? "Text" : "Checkbox"}
+                  {TYPE_LABELS[t]}
                 </button>
               ))}
             </div>
@@ -101,7 +106,7 @@ export default function Sidebar({ fields, existing, pageCount, selected, code, o
             <span className={`dot ${f.type}`} />
             <span className="name">{f.name || "(unnamed)"}</span>
             {pageCount > 1 && <span className="muted">p{f.page + 1}</span>}
-            <span className="muted">{f.type === "checkbox" ? "☐" : "T"}</span>
+            <span className="muted">{TYPE_ICONS[f.type]}</span>
           </div>
         ))}
         {existing.length > 0 && (

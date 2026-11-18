@@ -1,3 +1,5 @@
+export const TYPES = ["text", "checkbox", "signature"];
+
 // Helpers for the field list: sorting, naming, and converting to/from the FIELDS map.
 
 export const sortFields = (fields) =>
@@ -54,7 +56,7 @@ export function parseFields(text, startId, pageCount = 1) {
   const fields = Object.entries(obj).map(([name, v]) => ({
     id: id++,
     name,
-    type: v.type === "checkbox" ? "checkbox" : "text",
+    type: TYPES.includes(v.type) ? v.type : "text",
     page: Math.min(Math.max(0, +v.page || 0), pageCount - 1),
     x: +v.x || 0,
     y: +v.y || 0,
@@ -72,6 +74,8 @@ export function validate(fields, existingNames = []) {
     if (!f.name) return "Every field needs a name.";
     if (existing.has(f.name)) return `"${f.name}" is already a field in this PDF.`;
     if (seen.has(f.name)) return `Duplicate name: ${f.name}`;
+    if (f.type === "signature" && f.name.includes("."))
+      return `Signature names can't contain dots: ${f.name} (try ${f.name.replace(/\./g, "_")})`;
     seen.add(f.name);
   }
   return null;

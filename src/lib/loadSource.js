@@ -40,11 +40,10 @@ async function loadImage(bytes, file) {
 }
 
 async function loadPdf(bytes, name) {
+  // pdf.js takes ownership of the buffer it is given, so pass a copy
+  const loadingTask = pdfjs.getDocument({ data: bytes.slice() });
   let doc;
-  let loadingTask
   try {
-    // pdf.js takes ownership of the buffer it is given, so pass a copy
-    loadingTask =  pdfjs.getDocument({ data: bytes.slice() });
     doc = await loadingTask.promise;
   } catch (err) {
     if (err?.name === "PasswordException") throw new Error("This PDF is password-protected. Remove the password first.");
@@ -86,7 +85,7 @@ async function loadPdf(bytes, name) {
   }
 
   const hasXfa = doc.isPureXfa || (await doc.getMetadata()).info?.IsXFAPresent;
-  await loadingTask.destroy();
+  await loadingTask.destroy(); // frees the document and its worker (works in old and new pdf.js)
   return { kind: "pdf", name, bytes, units: "pt", pages, existing, hasXfa: Boolean(hasXfa) };
 }
 

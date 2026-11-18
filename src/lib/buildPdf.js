@@ -1,4 +1,4 @@
-import { PDFDocument, degrees } from "pdf-lib";
+import { PDFDocument, PDFString, degrees } from "pdf-lib";
 
 // Builds template.pdf with your named fields.
 //  - PDF source: the fields are added to the original PDF (text stays real text,
@@ -29,6 +29,28 @@ function createField(form, f) {
   return f.type === "checkbox" ? form.createCheckBox(f.name) : form.createTextField(f.name);
 }
 
+// pdf-lib has no createSignature(), so build the signature field (/FT /Sig) by hand.
+// Acrobat shows it as a "sign here" field; your Lambda can also stamp an image into it.
+function addSignatureField(pdf, page, name, rect) {
+  // An empty appearance stream: without one, pdf-lib's flatten() and removeField() throw.
+  const emptyAppearance = pdf.context.register(
+    pdf.context.formXObject([], { BBox: [0, 0, rect.width, rect.height] })
+  );
+  const widget = pdf.context.obj({
+    Type: "Annot",
+    Subtype: "Widget",
+    FT: "Sig",
+    T: PDFString.of(name),
+    Rect: [rect.x, rect.y, rect.x + rect.width, rect.y + rect.height],
+    F: 4, // print
+    P: page.ref,
+    AP: { N: emptyAppearance },
+  });
+  const ref = pdf.context.register(widget);
+  page.node.addAnnot(ref);
+  pdf.getForm().acroForm.addField(ref);
+}
+
 async function addToPdf(source, fields) {
   const pdf = await PDFDocument.load(source.bytes);
   const pages = pdf.getPages();
@@ -47,6 +69,10 @@ async function addToPdf(source, fields) {
       width: Math.abs(bx - ax),
       height: Math.abs(by - ay),
     };
+    if (f.type === "signature") {
+      addSignatureField(pdf, pages[f.page], f.name, rect);
+      continue;
+    }
     const angle = info.rotation || 0;
     createField(form, f).addToPage(pages[f.page], {
       ...rotatedPlacement(rect, angle),
@@ -68,13 +94,14 @@ async function fromImage(source, fields, pageWidth = 612) {
 
   const form = pdf.getForm();
   for (const f of fields) {
-    createField(form, f).addToPage(page, {
+    const rect = {
       x: f.x * s,
       y: page.getHeight() - (f.y + f.h) * s, // PDF origin is bottom-left
       width: f.w * s,
       height: f.h * s,
-      ...FIELD_STYLE,
-    });
+    };
+    if (f.type === "signature") addSignatureField(pdf, page, f.name, rect);
+    else createField(form, f).addToPage(page, { ...rect, ...FIELD_STYLE });
   }
   return pdf.save();
 }

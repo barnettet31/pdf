@@ -6,6 +6,7 @@ import { loadSource, releaseSource } from "./lib/loadSource.js";
 import { buildTemplate } from "./lib/buildPdf.js";
 
 const ACCEPT = "application/pdf,.pdf,image/png,image/jpeg";
+export const TYPE_OPTIONS = [["text", "Text"], ["checkbox", "Checkbox"], ["signature", "Signature"]];
 
 export default function App() {
   const [source, setSource] = useState(null); // see lib/loadSource.js
@@ -40,7 +41,7 @@ export default function App() {
   const addField = (page, rect) => {
     const f = {
       id: nextId.current++,
-      name: uniqueName(takenNames(), newType === "checkbox" ? "checkbox" : "field"),
+      name: uniqueName(takenNames(), newType === "text" ? "field" : newType),
       type: newType,
       page,
       ...rect,
@@ -134,7 +135,7 @@ export default function App() {
           Open PDF or image
           <input type="file" accept={ACCEPT} hidden onChange={(e) => openFile(e.target.files[0])} />
         </label>
-        <Seg value={newType} onChange={setNewType} options={[["text", "Text"], ["checkbox", "Checkbox"]]} />
+        <Seg value={newType} onChange={setNewType} options={TYPE_OPTIONS} />
         <Seg value={zoom} onChange={setZoom} options={[["fit", "Fit"], ["100", "100%"]]} />
         <button className="primary" disabled={!source || !fields.length} onClick={downloadPdf}>
           Download template.pdf
