@@ -4,8 +4,24 @@ import { PDFDocument, PDFString, degrees } from "pdf-lib";
 //  - PDF source: the fields are added to the original PDF (text stays real text,
 //    fields already in it are kept as they are).
 //  - Image source: the image becomes the page background, as in make-template.mjs.
-export async function buildTemplate(source, fields) {
-  return source.kind === "pdf" ? addToPdf(source, fields) : fromImage(source, fields);
+//  - `remove`: names of fields already in the PDF to delete first (fields you made
+//    editable are removed and re-created under their new name and position).
+export async function buildTemplate(source, fields, { remove = [] } = {}) {
+  return source.kind === "pdf" ? addToPdf(source, fields, remove) : fromImage(source, fields);
+}
+
+// form.removeField() throws on widgets without an appearance stream, which many
+// PDFs have, so remove the widgets and the field entry directly.
+function removeFieldSafe(pdf, field) {
+  const pages = pdf.getPages();
+  for (const widget of field.acroField.getWidgets()) {
+    const ref = pdf.context.getObjectRef(widget.dict);
+    if (!ref) continue;
+    pages.forEach((p) => p.node.removeAnnot(ref));
+    if (ref !== field.ref) pdf.context.delete(ref);
+  }
+  pdf.getForm().acroForm.removeField(field.acroField);
+  pdf.context.delete(field.ref);
 }
 
 const FIELD_STYLE = {
@@ -51,10 +67,16 @@ function addSignatureField(pdf, page, name, rect) {
   pdf.getForm().acroForm.addField(ref);
 }
 
-async function addToPdf(source, fields) {
+async function addToPdf(source, fields, remove) {
   const pdf = await PDFDocument.load(source.bytes);
   const pages = pdf.getPages();
   const form = pdf.getForm();
+
+  const toRemove = new Set([...remove, ...fields.map((f) => f.replaces).filter(Boolean)]);
+  for (const name of toRemove) {
+    const old = form.getFieldMaybe(name);
+    if (old) removeFieldSafe(pdf, old);
+  }
 
   for (const f of fields) {
     const info = source.pages[f.page];

@@ -35,7 +35,8 @@ export function toFieldsCode(fields, source) {
   const lines = sorted.map((f) => {
     const key = (JSON.stringify(f.name) + ":").padEnd(pad);
     const type = (JSON.stringify(f.type) + ",").padEnd(12);
-    return `  ${key} { type: ${type} page: ${f.page}, x: ${f.x}, y: ${f.y}, w: ${f.w}, h: ${f.h} },`;
+    const was = f.replaces ? `, replaces: ${JSON.stringify(f.replaces)}` : "";
+    return `  ${key} { type: ${type} page: ${f.page}, x: ${f.x}, y: ${f.y}, w: ${f.w}, h: ${f.h}${was} },`;
   });
   return [...header, `const FIELDS = {\n${lines.join("\n")}\n};`].join("\n");
 }
@@ -43,15 +44,23 @@ export function toFieldsCode(fields, source) {
 // Accepts pasted JSON or the JS object printed by toFieldsCode.
 export function parseFields(text, startId, pageCount = 1) {
   const json = text
+    .replace(/^\s*\/\/.*$/gm, "") // full-line comments (not "//" inside names)
     .trim()
     .replace(/^[\s\S]*?(const|let|var)\s+\w+\s*=\s*/, "") // strip "const FIELDS ="
-    .replace(/\/\/.*$/gm, "") // line comments
     .replace(/;\s*$/, "")
+    .trim();
+  if (!json) {
+    throw new Error(
+      "there is no FIELDS object in that text. Paste a `const FIELDS = { ... }` block. " +
+        "(Fields already in the PDF load on their own: use \"Edit these fields\" in the sidebar.)"
+    );
+  }
+  const cleaned = json
     .replace(/([{,]\s*)([A-Za-z_]\w*)\s*:/g, '$1"$2":') // quote bare keys
     .replace(/'/g, '"')
     .replace(/,\s*([}\]])/g, "$1"); // trailing commas
 
-  const obj = JSON.parse(json);
+  const obj = JSON.parse(cleaned);
   let id = startId;
   const fields = Object.entries(obj).map(([name, v]) => ({
     id: id++,
@@ -62,6 +71,7 @@ export function parseFields(text, startId, pageCount = 1) {
     y: +v.y || 0,
     w: +v.w || 50,
     h: +v.h || 20,
+    ...(typeof v.replaces === "string" && { replaces: v.replaces }),
   }));
   if (!fields.length) throw new Error("No fields found");
   return fields;

@@ -17,6 +17,7 @@ export default function App() {
   const [wrapWidth, setWrapWidth] = useState(800);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [dropped, setDropped] = useState([]); // existing PDF fields you made editable, then deleted
   const nextId = useRef(1);
   const wrapRef = useRef(null);
 
@@ -52,8 +53,30 @@ export default function App() {
   const updateField = (id, patch) =>
     setFields((fs) => fs.map((f) => (f.id === id ? { ...f, ...patch } : f)));
   const deleteField = (id) => {
+    const f = fields.find((f) => f.id === id);
+    if (f?.replaces) setDropped((d) => [...d, f.replaces]); // delete it from the PDF too
     setFields((fs) => fs.filter((f) => f.id !== id));
     setSelectedId(null);
+  };
+
+  // Turn the PDF's own text/checkbox/signature fields into editable boxes.
+  // On download each one is removed and re-created with its new name and position.
+  // Dropdowns, radio groups and fields with several widgets stay locked.
+  const isAdoptable = (e) =>
+    ["text", "checkbox", "signature"].includes(e.type) &&
+    existing.filter((x) => x.name === e.name).length === 1;
+  const adoptableCount = existing.filter(isAdoptable).length;
+  const adoptExisting = () => {
+    const adopted = existing.filter(isAdoptable).map((e) => ({
+      id: nextId.current++,
+      name: e.name,
+      type: e.type,
+      page: e.page,
+      x: e.x, y: e.y, w: e.w, h: e.h,
+      replaces: e.name,
+    }));
+    setFields((fs) => [...fs, ...adopted]);
+    setSource((s) => ({ ...s, existing: s.existing.filter((e) => !isAdoptable(e)) }));
   };
   const importFields = (text) => {
     const parsed = parseFields(text, nextId.current, Math.max(1, pageCount));
@@ -93,6 +116,7 @@ export default function App() {
       releaseSource(source);
       setSource(next);
       setSelectedId(null);
+      setDropped([]);
       // Keep fields only if they still fit (e.g. reopening an updated version of the same form)
       setFields((fs) => fs.filter((f) => f.page < next.pages.length));
       if (next.hasXfa) setError("This PDF contains an XFA form. pdf-lib may not fill it reliably.");
@@ -109,7 +133,7 @@ export default function App() {
     if (problem) return setError(problem);
     setError("");
     try {
-      const pdfBytes = await buildTemplate(source, fields);
+      const pdfBytes = await buildTemplate(source, fields, { remove: dropped });
       const url = URL.createObjectURL(new Blob([pdfBytes], { type: "application/pdf" }));
       const base = source.name.replace(/\.[^.]+$/, "");
       const a = Object.assign(document.createElement("a"), { href: url, download: `${base}-template.pdf` });
@@ -184,6 +208,8 @@ export default function App() {
           onChange={updateField}
           onDelete={deleteField}
           onImport={importFields}
+          adoptableCount={adoptableCount}
+          onAdopt={adoptExisting}
         />
       </main>
     </div>

@@ -6,7 +6,7 @@ const TYPE_ICONS = { text: "T", checkbox: "☐", signature: "✍" };
 
 const NUM_KEYS = ["x", "y", "w", "h"];
 
-export default function Sidebar({ fields, existing, pageCount, selected, code, onSelect, onChange, onDelete, onImport }) {
+export default function Sidebar({ fields, existing, pageCount, selected, code, onSelect, onChange, onDelete, onImport, adoptableCount, onAdopt }) {
   const [importing, setImporting] = useState(false);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState("");
@@ -58,6 +58,13 @@ export default function Sidebar({ fields, existing, pageCount, selected, code, o
               onChange={(e) => onChange(selected.id, { name: e.target.value.trim() })}
             />
             <p className="warn">{nameProblem}</p>
+            {selected.replaces && (
+              <p className="muted small">
+                {selected.replaces === selected.name
+                  ? "Existing PDF field (made editable)."
+                  : `Renamed from the PDF's "${selected.replaces}".`}
+              </p>
+            )}
 
             <label className="f">Type</label>
             <div className="seg">
@@ -104,14 +111,29 @@ export default function Sidebar({ fields, existing, pageCount, selected, code, o
             onClick={() => onSelect(f.id)}
           >
             <span className={`dot ${f.type}`} />
-            <span className="name">{f.name || "(unnamed)"}</span>
+            <span className="name">
+              {f.name || "(unnamed)"}
+              {f.replaces && f.replaces !== f.name && <span className="muted"> ← {f.replaces}</span>}
+            </span>
             {pageCount > 1 && <span className="muted">p{f.page + 1}</span>}
             <span className="muted">{TYPE_ICONS[f.type]}</span>
           </div>
         ))}
         {existing.length > 0 && (
           <>
-            <h2 className="sub">Already in the PDF ({existing.length})</h2>
+            <div className="row center sub">
+              <h2>Already in the PDF ({existing.length})</h2>
+              {adoptableCount > 0 && (
+                <button onClick={onAdopt} title="Rename, move or resize the PDF's own fields">
+                  Edit these fields
+                </button>
+              )}
+            </div>
+            {adoptableCount < existing.length && (
+              <p className="muted small locked-note">
+                Dropdowns, radio groups and fields shown in several places stay locked and are kept as-is.
+              </p>
+            )}
             {existing.map((f, i) => (
               <div key={i} className="item locked" title="Kept as-is in the output">
                 <span className="dot existing" />

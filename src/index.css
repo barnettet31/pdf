@@ -118,4 +118,6 @@ textarea { height: 150px; resize: vertical; white-space: pre; font-size: 11.5px;
 .dot.existing { background: var(--muted); }
 .item.locked { cursor: default; color: var(--muted); }
 .item.locked:hover { background: none; }
-.sidebar h2.sub { margin: 14px 8px 6px; }
+.sidebar .sub { margin: 14px 8px 6px; }
+.small { font-size: 12px; margin: 4px 0 0; }
+.locked-note { padding: 0 8px; margin: 0 0 6px; }
